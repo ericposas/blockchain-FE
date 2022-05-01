@@ -1,8 +1,8 @@
 import './App.css';
-import React, { useEffect, useRef, useState } from 'react';
-import { ethers } from 'ethers';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BigNumber, ethers } from 'ethers';
 import styled from 'styled-components';
-import ContractABI from './artifacts/contracts/MyContract.json';
+import ContractABI from './artifacts/contracts/Game.json';
 
 declare var window: any;
 
@@ -12,7 +12,7 @@ const Div = styled.div<{
 }>`
 margin-top: ${({ mt }) => mt ?? '12px'};
 margin-bottom: ${({ mb }) => mb ?? '12px'};
-`
+`;
 
 const Button = styled.button<{
   ml?: string,
@@ -32,31 +32,46 @@ color: white;
 border: none;
 cursor: pointer;
 margin-left: ${({ ml }) => ml}
-`
+`;
+
+const Input = styled.input<{}>`
+width: 50px;
+margin-right: 5px;
+`;
 
 export default function App() {
 
-  const providerRef = useRef<ethers.providers.Web3Provider | undefined>(undefined)
-  const signerRef = useRef<any | undefined>(undefined)
-  const contractRef = useRef<any | undefined>(undefined)
-  const [accounts, setAccounts] = useState<Array<string>>([])
-  // const [addressToQuery, setAddressToQuery] = useState<string | undefined>(undefined)
+  const providerRef = useRef<ethers.providers.Web3Provider | undefined>(undefined);
+  const signerRef = useRef<any | undefined>(undefined);
+  const contractRef = useRef<any | undefined>(undefined);
+  const [accounts, setAccounts] = useState<Array<string>>([]);
 
   useEffect(() => {
     if (window.ethereum && providerRef.current === undefined) {
       providerRef.current = new ethers.providers.Web3Provider(window.ethereum)
       signerRef.current = providerRef.current.getSigner()
       // set up MyContract
-      contractRef.current = new ethers.Contract(ContractABI.networks[4].address, ContractABI.abi, signerRef.current)
+      contractRef.current = new ethers.Contract(ContractABI.networks[4].address, ContractABI.abi, signerRef.current);
     }
-  }, [])
+  }, []);
 
-  // const checkBalance = async (): Promise<any> => {
-  //   const bal: BigNumber | undefined = await providerRef.current?.getBalance('ethers.eth')
-  //   console.log(
-  //     ethers.utils.formatEther(bal!)
-  //   )
-  // }
+  const getUsersCoinBalance = useCallback(async () => {
+    const result = await contractRef.current.getUserBal();    
+    setCoinBalance(toNormalNumber(result))
+  }, [contractRef]);
+
+  useEffect(() => {
+    (async () => await getUsersCoinBalance())();
+  });
+
+  const BASE_COIN_18_DECIMALS = 1000000000000000000;
+  const BASE_ETHER_25 = 10000000000000000000000000;
+
+  const [tokenSpendValue, setTokenSpendValue] = useState<string>('0');
+  const [transactionApproved, setTransactionApproved] = useState<boolean>(false);
+  const [coinBalance, setCoinBalance] = useState<string>('0.0');
+
+  const toNormalNumber = (bn: BigNumber) => ethers.utils.formatEther(bn.toString());
 
   return (
     <div className="App">
@@ -80,6 +95,20 @@ export default function App() {
             <Div mt='30px'>
               Your Account(s):
             </Div>
+            <Div
+              style={{
+                backgroundColor: '#333',
+                color: '#fff',
+                padding: '8px',
+                width: '180px',
+                textAlign: 'center',
+                margin: '0 auto',
+                marginBottom: '20px',
+                borderRadius: '3px'
+              }}
+            >
+              Coin Balance: {coinBalance}
+            </Div>
             {
               accounts.map((acct, i) => (
                 <Div key={i}>
@@ -88,7 +117,7 @@ export default function App() {
                       backgroundColor: '#333',
                       color: '#fff',
                       padding: '8px',
-                      width: '500px',
+                      width: '400px',
                       textAlign: 'center',
                       margin: '0 auto',
                       marginBottom: '20px',
@@ -105,40 +134,93 @@ export default function App() {
                       <Div>
                         <Button ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
                           onClick={async () => {
-                            const result = await contractRef.current.hitContract()
+                            // get $20 of ether value (fig. out from coingecko api perhaps), just random amt for now
+                            const result = await contractRef.current.buyCoins({ value: ethers.utils.parseEther('0.005') })
                             console.log(
                               result
-                            )
+                            );
+                            if (providerRef && providerRef.current) {
+                              providerRef.current.once(result.hash, (transaction) => {
+                                // Emitted when the transaction has been mined
+                                console.log(
+                                  result.hash,
+                                  transaction
+                                );
+                                getUsersCoinBalance();
+                              });
+                            }
                           }}
                         >
-                          hitContract
+                          Buy tokens
                         </Button>
                         <Button ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
-                          onClick={async () => {
-                            const interactions: any = await contractRef.current.getUserData()
-                            console.log(
-                              `interaction count for address ${ContractABI.networks[4].address}:`,
-                              interactions.count.toNumber()
-                            )
-                          }}
+                          onClick={getUsersCoinBalance}
                         >
-                          getUserData
+                          Check Token Balance
                         </Button>
-                        <Button ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
-                          onClick={async () => {
-                            const interactions: any = await contractRef.current.getAllInteractions()
-                            const mapped = interactions.map((inter: any) => {
-                              return {
-                                id: inter.id.toNumber(),
-                                count: inter.count.toNumber(),
-                                address: inter.address_
-                              };
-                            })
-                            console.log(mapped);
-                          }}
-                        >
-                          getAllInteractions (all addresses)
-                        </Button>
+                        <br />
+                        <Div>
+                          <Div mt='0'>
+                            Buy some in-game items or something..
+                          </Div>
+                          <>
+                            {
+                              !transactionApproved
+                                // transactionApproved
+                                ? <Button ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
+                                  onClick={async () => {
+                                    const result = await contractRef.current.approveSpend();
+                                    console.log(
+                                      result
+                                    );
+                                    if (providerRef && providerRef.current) {
+                                      providerRef.current.once(result.hash, (transaction) => {
+                                        // Emitted when the transaction has been mined
+                                        console.log(
+                                          result.hash,
+                                          transaction
+                                        );
+                                        setTransactionApproved(true); // will need to get transaction approval upon app load to check against and set the proper state
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Approval to Spend DETH
+                                </Button>
+                                : <>
+                                  <Input
+                                    min={0}
+                                    max={100}
+                                    type={'number'}
+                                    value={tokenSpendValue}
+                                    onChange={e => setTokenSpendValue(e.currentTarget.value)}
+                                  />
+                                  <Button ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
+                                    onClick={async () => {
+                                      const result = await contractRef.current.spendCoins(
+                                        (tokenSpendValue as unknown as number * BASE_COIN_18_DECIMALS).toString()
+                                      );
+                                      console.log(result);
+                                      if (providerRef && providerRef.current) {
+                                        providerRef.current.once(result.hash, (transaction) => {
+                                          // Emitted when the transaction has been mined
+                                          console.log(
+                                            result.hash,
+                                            transaction
+                                          )
+                                          setTransactionApproved(false);
+                                          getUsersCoinBalance();
+                                          setTokenSpendValue('0');
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    Spend tokens
+                                  </Button>
+                                </>
+                            }
+                          </>
+                        </Div>
                       </Div>
                     </Div>
                   }
