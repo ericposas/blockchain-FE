@@ -75,20 +75,20 @@ export default function App() {
     }
   }, []);
 
-  const getUsersCoinBalance = useCallback(async () => {
+  const getUsersTokenBalance = useCallback(async () => {
     const result = await contractRef.current.getUserBal();
-    setCoinBalance(toNormalNumber(result))
+    setTokenBalance(toNormalNumber(result))
   }, [contractRef]);
 
   useEffect(() => {
-    (async () => await getUsersCoinBalance())();
+    (async () => await getUsersTokenBalance())();
   });
 
   const BASE_COIN_18_DECIMALS = 1000000000000000000;
   const BASE_ETHER_25 = 10000000000000000000000000;
 
   const [tokenSpendValue, setTokenSpendValue] = useState<string>('0');
-  const [coinBalance, setCoinBalance] = useState<string>('0.0');
+  const [tokenBalance, setTokenBalance] = useState<string>('0.0');
 
   const toNormalNumber = (bn: BigNumber) => ethers.utils.formatEther(bn.toString());
 
@@ -133,7 +133,7 @@ export default function App() {
                 fontSize: '0.85rem'
               }}
             >
-              Coin Balance: {coinBalance}
+              Token Balance: {tokenBalance}
             </Div>
 
             <Div
@@ -151,16 +151,16 @@ export default function App() {
               {accounts[0]}
             </Div>
 
-            <Div p='30px' mt='30px' mb='30px' radius='4px' bg='rgba(0, 0, 0, 0.1)'>
+            <Div p='30px' mt='30px' mb='30px' radius='6px' bg='rgba(0, 0, 0, 0.2)'>
               <Div>
                 Available "{ContractABI.contractName}" Contract Methods
               </Div>
               <Div>
-                Buy Some Coins
+                Buy Some Tokens
                 <Button ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
                   onClick={async () => {
                     // get $20 of ether value (fig. out from coingecko api perhaps), just random amt for now
-                    const result = await contractRef.current.buyCoins({ value: ethers.utils.parseEther('0.005') })
+                    const result = await contractRef.current.buyTokens({ value: ethers.utils.parseEther('0.01') })
                     console.log(
                       result
                     );
@@ -171,24 +171,24 @@ export default function App() {
                           result.hash,
                           transaction
                         );
-                        getUsersCoinBalance();
+                        getUsersTokenBalance();
                       });
                     }
                   }}
                 >
-                  Buy Coins
+                  Buy Tokens
                 </Button>
                 <Button display='inline-block' ml='12px' pt='6px' pb='6px' pl='10px' pr='10px'
                   onClick={async () => {
-                    await getUsersCoinBalance();
-                    window.alert(`You have ${coinBalance} COINs`)
+                    await getUsersTokenBalance();
+                    window.alert(`You have ${tokenBalance} Tokens`)
                   }}
                 >
-                  Check Coin Balance
+                  Check Token Balance
                 </Button>
               </Div>
               <Div>
-                Spend Your Coins
+                Spend Your Tokens
                 <Input
                   ml='10px'
                   min={0}
@@ -199,7 +199,7 @@ export default function App() {
                 />
                 <Button ml='2px' pt='6px' pb='6px' pl='10px' pr='10px'
                   onClick={async () => {
-                    const result = await contractRef.current.spendCoins(
+                    const result = await contractRef.current.spendTokens(
                       (tokenSpendValue as unknown as number * BASE_COIN_18_DECIMALS).toString()
                     );
                     console.log(result);
@@ -210,13 +210,13 @@ export default function App() {
                           result.hash,
                           transaction
                         );
-                        getUsersCoinBalance();
+                        getUsersTokenBalance();
                         setTokenSpendValue('0');
                       });
                     }
                   }}
                 >
-                  Spend Coins
+                  Spend Tokens
                 </Button>
               </Div>
             </Div>
